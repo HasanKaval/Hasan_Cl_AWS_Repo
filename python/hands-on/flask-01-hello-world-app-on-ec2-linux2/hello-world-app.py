@@ -6,8 +6,8 @@ app = Flask(__name__)
 def hello() :
     return "<h1>Hello World</h1>"
 
-@app.route("/first")
-def first1() :
+#@app.route("/first")
+#def first1() :
     
 
 if __name__ == "__main__" :
