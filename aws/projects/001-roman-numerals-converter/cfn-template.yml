@@ -23,8 +23,8 @@ Resources:
     Type: AWS::EC2::Instance
     Properties:
       ImageId: ami-09d95fab7fff3776c
-      InstanceType: !Ref InstanceType
-      KeyName: !Ref KeyName
+      InstanceType: t2.micro
+      KeyName: hans_1_NVA
       SecurityGroupIds:
         - !Ref RomanNumeralsConverterSC
       Tags:                
