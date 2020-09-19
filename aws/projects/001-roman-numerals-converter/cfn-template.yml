@@ -39,13 +39,13 @@ Resources:
             yum install python3 -y
             pip3 install flask
             yum install git -y
-            yum install httpd -y
-            cd /var/www/html/
+            mkdir templates
+            sudo chmod -R 777 ./
+            wget https://raw.githubusercontent.com/HasanKaval/Hasan_Cl_AWS_Repo/master/aws/projects/001-roman-numerals-converter/app.py
+            cd templates
             wget https://raw.githubusercontent.com/HasanKaval/Hasan_Cl_AWS_Repo/master/aws/projects/001-roman-numerals-converter/templates/index.html
             wget https://raw.githubusercontent.com/HasanKaval/Hasan_Cl_AWS_Repo/master/aws/projects/001-roman-numerals-converter/templates/result.html
-            wget https://raw.githubusercontent.com/HasanKaval/Hasan_Cl_AWS_Repo/master/aws/projects/001-roman-numerals-converter/app.py
-            systemctl start httpd
-            systemctl enable httpd
+            cd ..
             python3 app.py
 Outputs:
   WebsiteURL:
