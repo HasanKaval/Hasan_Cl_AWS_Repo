@@ -1,88 +1,56 @@
 AWSTemplateFormatVersion: 2010-09-09
-
 Description: |
-  CloudFormation Template for Miliseconds Converter Application. This template creates Python Flask Web Application on Amazon Linux 2 (XXXXXXXXXXXXXXXXX) EC2 Instance with custom security group allowing http connections on port 80.
-  Miliseconds Converter Application is downloaded from Github repository, then installed on Flask.
-
+  The Milliseconds Converter Application aims to convert the given time in milliseconds into hours, minutes, and seconds. The application is to be coded in Python and deployed as a web application with Flask on AWS Application Load Balancer with Auto Scaling Group of Elastic Compute Cloud (EC2) Instances using AWS Cloudformation Service.
 Parameters:
-  KeyPairName:
-    Description: Enter the name of your Key Pair for SSH connection.
-    Type: AWS::EC2::KeyPair::KeyName
-    ConstraintDescription: Must one of the existing EC2 Keypair
-
+  
+Mappings:
+  
+Conditions:
+  
 Resources:
-  WebServerSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
+  
+  MiliTargetGrp:
+    Type: "AWS::ElasticLoadBalancingV2::TargetGroup"
     Properties:
-      GroupDescription: Enable HTTP for Flask Web Server
+      HealthCheckEnabled: Boolean
+      HealthCheckIntervalSeconds: Integer
+      HealthCheckPath: String
+      HealthCheckPort: String
+      HealthCheckProtocol: String
+      HealthCheckTimeoutSeconds: Integer
+      HealthyThresholdCount: Integer
+      Matcher:
+        Matcher
+      Name: String
+      Port: Integer
+      Protocol: String
+      Tags:
+        - Tag
+      TargetGroupAttributes:
+        - TargetGroupAttribute
+      TargetType: String
+      Targets:
+        - TargetDescription
+      UnhealthyThresholdCount: Integer
+      VpcId: String
+  
+  
+  MiliSecGrp:
+    Type: "AWS::EC2::SecurityGroup"
+    Properties:
+      GroupDescription: enables SSH and HTTP #required
       SecurityGroupIngress:
-        - IpProtocol: tcp
-          FromPort: 80
-          ToPort: 80
-          CidrIp: 0.0.0.0/0
         - IpProtocol: tcp
           FromPort: 22
           ToPort: 22
           CidrIp: 0.0.0.0/0
-  
-  ELoadBalancer:
-    Type: AWS::ElasticLoadBalancing::LoadBalancer
-    Properties:
-      Scheme: internal
-      SecurityGroups:
-        - sg-id
-      Subnets:
-        - subnet-id
-      Instances:
-        - instance-id
-      Listeners:
-        - LoadBalancerPort: 
-          InstancePort: 
-          Protocol: HTTP|HTTPS|TCP|SSL
-          InstanceProtocol: HTTP|HTTPS|TCP|SSL
-        - LoadBalancerPort: '443'
-          InstancePort: '443'
-          Protocol: HTTPS
-          InstanceProtocol: HTTPS
-          SSLCertificateId: 
-      HealthCheck:
-        Target: TCP:port or HTTPS|HTTP:port/PathToPing
-        HealthyThreshold: 
-        Interval: 
-        Timeout: 
-        UnhealthyThreshold: 
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
 
-  WebServerHost:
-    Type: AWS::EC2::Instance
-    Properties:
-      ImageId: ami-0947d2ba12ee1ff75 #kontol et
-      InstanceType: t2.micro
-      KeyName: !Ref KeyPairName
-      SecurityGroupIds:
-        - !Ref WebServerSecurityGroup
-      Tags:                    
-        - Key: Name
-          Value: !Sub Web Server of ${AWS::StackName} Stack   
-      UserData: 
-        Fn::Base64: 
-          !Sub |
-            #!/bin/bash
 
-            yum update -y
-            yum install python3 -y
-            pip3 install flask
-            cd /home/ec2-user
-            wget https://raw.githubusercontent.com/nsaylan/Clarusway-aws-devops-workshop/master/aws/projects/001-roman-numerals-converter/Portfolio20200930/app.py
-            mkdir templates
-            cd templates
-            wget https://raw.githubusercontent.com/nsaylan/Clarusway-aws-devops-workshop/master/aws/projects/001-roman-numerals-converter/Portfolio20200930/templates/index.html
-            wget https://raw.githubusercontent.com/nsaylan/Clarusway-aws-devops-workshop/master/aws/projects/001-roman-numerals-converter/Portfolio20200930/templates/result.html
-            cd ..
-            python3 app.py
-             
+      Tags:
+        - Tag
+        
 Outputs:
-  WebsiteURL:
-    Value: !Sub 
-      - http://${PublicAddress}
-      - PublicAddress: !GetAtt WebServerHost.PublicDnsName
-    Description: Roman Numerals Converter Application URL
