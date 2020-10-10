@@ -9,30 +9,77 @@ Conditions:
   
 Resources:
   
+  MiliAutoScalingPol:
+    Type: "AWS::AutoScaling::ScalingPolicy"
+    Properties:
+      AdjustmentType: String
+      AutoScalingGroupName: COME BACK
+      #Cooldown: String
+      #EstimatedInstanceWarmup: Integer
+      #MetricAggregationType: String
+      #MinAdjustmentMagnitude: Integer
+      PolicyType: TargetTrackingScaling
+      #ScalingAdjustment: Integer
+      #StepAdjustments:
+      # - StepAdjustment
+      TargetTrackingConfiguration:
+        TargetTrackingConfiguration
+  
+  
+  MiliLoadBalancer:
+    Type: "AWS::ElasticLoadBalancingV2::LoadBalancer"
+    Properties:
+      #IpAddressType: String
+      #LoadBalancerAttributes:
+      #  - LoadBalancerAttribute
+      SecurityGroups:
+        - !GetAtt MiliSecGrp.GroupId
+      #SubnetMappings:
+      #  - SubnetMapping
+      Subnets:
+        - COME BACK
+      #Tags:
+      #  - Tag
+      #Type: String
+  
+  
+  MiliListener:
+    Type: "AWS::ElasticLoadBalancingV2::Listener"
+    Properties:
+      #AlpnPolicy:
+      #  - String
+      #Certificates:
+      #  - Certificate
+      DefaultActions: #required
+        - Type: forward
+          TargetGroupArn: !Ref MiliTargetGrp
+      LoadBalancerArn: !Ref MiliLoadBalancer
+      Port: 80
+      Protocol: HTTP
+      #SslPolicy: String
+  
+
   MiliTargetGrp:
     Type: "AWS::ElasticLoadBalancingV2::TargetGroup"
     Properties:
-      HealthCheckEnabled: Boolean
-      HealthCheckIntervalSeconds: Integer
-      HealthCheckPath: String
-      HealthCheckPort: String
-      HealthCheckProtocol: String
-      HealthCheckTimeoutSeconds: Integer
-      HealthyThresholdCount: Integer
-      Matcher:
-        Matcher
-      Name: String
-      Port: Integer
-      Protocol: String
+      HealthCheckIntervalSeconds: 25
+      #HealthCheckPath: String
+      #HealthCheckPort: String
+      #HealthCheckProtocol: String
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 3
+      #Name: String
+      Port: 80
+      Protocol: HTTP
       Tags:
         - Tag
-      TargetGroupAttributes:
-        - TargetGroupAttribute
-      TargetType: String
-      Targets:
-        - TargetDescription
-      UnhealthyThresholdCount: Integer
-      VpcId: String
+      #TargetGroupAttributes:
+      #  - TargetGroupAttribute
+      #TargetType: String
+      #Targets:
+      #  - TargetDescription
+      UnhealthyThresholdCount: 3
+      VpcId: COME BACK
   
   
   MiliSecGrp:
