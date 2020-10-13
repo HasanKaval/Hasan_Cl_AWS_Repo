@@ -9,10 +9,74 @@ Conditions:
   
 Resources:
   
+  MiliAutoScalingGrp:
+    Type: "AWS::AutoScaling::AutoScalingGroup"
+    Properties:
+      AvailabilityZones: !GetAZs 
+      DesiredCapacity: 2
+      HealthCheckGracePeriod: 90 seconds
+      HealthCheckType: ELB
+      InstanceId: String
+      #LaunchConfigurationName: String
+      LaunchTemplate: !Ref MiliLaunchTemp
+      #LifecycleHookSpecificationList:
+      #  - LifecycleHookSpecification
+      LoadBalancerNames:
+        - String
+      MaxInstanceLifetime: Integer
+      MaxSize: 3 #required
+      #MetricsCollection:
+      #  - MetricsCollection
+      MinSize: 1 #required
+      MixedInstancesPolicy:
+        MixedInstancesPolicy
+      NewInstancesProtectedFromScaleIn: Boolean
+      NotificationConfigurations:
+        - NotificationConfiguration
+      PlacementGroup: String
+      ServiceLinkedRoleARN: String
+      Tags:
+        - TagProperty
+      TargetGroupARNs:
+        - String
+      TerminationPolicies:
+        - String
+      VPCZoneIdentifier:
+        - String
+  
+  MiliLaunchTemp:
+    Type: "AWS::EC2::LaunchTemplate"
+    Properties:
+      LaunchTemplateData:
+        !Ref MiliWebServerHost
+  
+
+  MiliWebServerHost:
+    Type: "AWS::EC2::Instance"
+    Properties:
+      ImageId: ami-007a607c4abd192db
+      InstanceType: t2.micro
+      KeyName: !Ref KeyName
+      LaunchTemplate:
+        LaunchTemplateSpecification
+      SecurityGroupIds:
+        - !Ref MiliSecGrp
+      #SecurityGroups:
+      #  - String
+      #SourceDestCheck: Boolean
+      #SsmAssociations:
+      #  - SsmAssociation
+      #SubnetId: String
+      Tags:
+        - Key: Name
+          Value: Web Server of ${AWS::StackName} Stack
+      UserData: 
+      
+
   MiliAutoScalingPol:
     Type: "AWS::AutoScaling::ScalingPolicy"
     Properties:
-      AdjustmentType: String
+      #AdjustmentType: String
       AutoScalingGroupName: COME BACK
       #Cooldown: String
       #EstimatedInstanceWarmup: Integer
@@ -23,61 +87,39 @@ Resources:
       #StepAdjustments:
       # - StepAdjustment
       TargetTrackingConfiguration:
-        TargetTrackingConfiguration
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ASGAverageCPUUtilization
+        TargetValue: COME BACK
   
   
   MiliLoadBalancer:
     Type: "AWS::ElasticLoadBalancingV2::LoadBalancer"
     Properties:
-      #IpAddressType: String
-      #LoadBalancerAttributes:
-      #  - LoadBalancerAttribute
       SecurityGroups:
         - !GetAtt MiliSecGrp.GroupId
-      #SubnetMappings:
-      #  - SubnetMapping
       Subnets:
         - COME BACK
-      #Tags:
-      #  - Tag
-      #Type: String
-  
+
   
   MiliListener:
     Type: "AWS::ElasticLoadBalancingV2::Listener"
     Properties:
-      #AlpnPolicy:
-      #  - String
-      #Certificates:
-      #  - Certificate
       DefaultActions: #required
         - Type: forward
           TargetGroupArn: !Ref MiliTargetGrp
       LoadBalancerArn: !Ref MiliLoadBalancer
       Port: 80
       Protocol: HTTP
-      #SslPolicy: String
-  
+                                              
 
   MiliTargetGrp:
     Type: "AWS::ElasticLoadBalancingV2::TargetGroup"
     Properties:
       HealthCheckIntervalSeconds: 25
-      #HealthCheckPath: String
-      #HealthCheckPort: String
-      #HealthCheckProtocol: String
       HealthCheckTimeoutSeconds: 5
       HealthyThresholdCount: 3
-      #Name: String
       Port: 80
       Protocol: HTTP
-      Tags:
-        - Tag
-      #TargetGroupAttributes:
-      #  - TargetGroupAttribute
-      #TargetType: String
-      #Targets:
-      #  - TargetDescription
       UnhealthyThresholdCount: 3
       VpcId: COME BACK
   
@@ -95,8 +137,6 @@ Resources:
           FromPort: 80
           ToPort: 80
           CidrIp: 0.0.0.0/0
-
-
       Tags:
         - Tag
         
