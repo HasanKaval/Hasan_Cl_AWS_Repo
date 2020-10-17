@@ -50,14 +50,15 @@ Resources:
               yum update -y
               yum install python3 -y
               pip3 install flask
-              pip3 install flask_sqlalchemy
-              pip3 install flask_mysql
+              pip3 install flask-sqlalchemy
+              pip3 install flask-mysql
               TOKEN="626311672fd98b06ecb756559ece841c0e0cd04d"
               FOLDER="https://$TOKEN@raw.githubusercontent.com/HasanKaval/Hasan_Cl_AWS_Repo/master/aws/projects/004-phonebook-web-application/"
               curl -s --create-dirs -o "/home/ec2-user/templates/index.html" -L "$FOLDER"templates/index.html
               curl -s --create-dirs -o "/home/ec2-user/templates/delete.html" -L "$FOLDER"templates/delete.html
               curl -s --create-dirs -o "/home/ec2-user/templates/add-update.html" -L "$FOLDER"templates/add-update.html
               curl -s --create-dirs -o "/home/ec2-user/phonebook-app.py" -L "$FOLDER"phonebook-app.py
+              echo "${"MySQLRDSInstance.Endpoint.Address}" >> dbserver.endpoint
               python3 /home/ec2-user/phonebook-app.py
 
   WebServerTargetGroup:
@@ -115,7 +116,7 @@ Resources:
     Properties:
       DBSecurityGroupIngress: #required
         - CIDRIP: 0.0.0.0/0
-        - EC2SecurityGroupId: !GetAtt WebServerSecurityGroup.GroupId
+        #- EC2SecurityGroupId: !GetAtt WebServerSecurityGroup.GroupId
       GroupDescription: Security Group for RDS private access #required
       
   MySQLRDSInstance:
@@ -123,16 +124,17 @@ Resources:
     Properties:
       AllocatedStorage: '20'
       DBInstanceClass: db.t2.micro #required
-      DBName: MyRDS
+      DBName: 'MyRDS'
       DBSecurityGroups:
         - !Ref RDSSecurityGroup
       Engine: mysql
       EngineVersion: '8.0.19'
-      MasterUserPassword: admin12345678
-      MasterUsername: Admin
+      MasterUserPassword: 'admin12345678'
+      MasterUsername: 'Admin'
+      PubliclyAccessible: true
       Tags:
         - Key: Name
-          Value: MyRDS  
+          Value: My_RDS  
 
 Outputs:
   WebsiteURL:
