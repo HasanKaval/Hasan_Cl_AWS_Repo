@@ -36,14 +36,14 @@ def init_phonebook_db():
     data = """
     INSERT INTO phonebook.phonebook (name, number)
     VALUES
-        ("Robert Cube", "1234567890"),
-        ("Mike Tiger", "67854"),
-        ("Graham Bell", "1");
+        ("Callahan", "1234567890"),
+        ("Sergio Taco", "67854"),
+        ("Vincenzo Altobelli", "876543554");
     """
     cursor.execute(drop_table)
     cursor.execute(phonebook_table)
     cursor.execute(data)
-
+init_phonebook_db()
 # Write a function named `find_persons` which finds persons' record using the keyword from the phonebook table in the db,
 # and returns result as list of dictionary 
 # `[{'id': 1, 'name':'XXXX', 'number': 'XXXXXX'}]`.
