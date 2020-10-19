@@ -27,7 +27,6 @@ Resources:
           FromPort: 80
           ToPort: 80
           SourceSecurityGroupId: !GetAtt ALBSecurityGroup.GroupId
-       
   
   WebServerLaunchTemplate:
     Type: AWS::EC2::LaunchTemplate
@@ -36,13 +35,15 @@ Resources:
         ImageId: ami-0947d2ba12ee1ff75
         InstanceType: t2.micro
         KeyName: hans_1_NVA
-        SecurityGroupIds: 
-          - !GetAtt WebServerSecurityGroup.GroupId
+        SecurityGroups:
+            - !Ref WebServerSecurityGroup
+        #SecurityGroupIds: 
+        #  - !GetAtt WebServerSecurityGroup.GroupId
         TagSpecifications:
           - ResourceType: instance
             Tags:
               - Key: Name
-                Value: !Sub Web Server of ${AWS::StackName} 
+                Value: !Sub Web Server of ${AWS::StackName}
         UserData: 
           Fn::Base64:
             !Sub |
@@ -52,28 +53,32 @@ Resources:
               pip3 install flask
               pip3 install flask-sqlalchemy
               pip3 install flask-mysql
-              TOKEN="626311672fd98b06ecb756559ece841c0e0cd04d"
-              FOLDER="https://$TOKEN@raw.githubusercontent.com/HasanKaval/Hasan_Cl_AWS_Repo/master/aws/projects/004-phonebook-web-application/"
-              curl -s --create-dirs -o "/home/ec2-user/templates/index.html" -L "$FOLDER"templates/index.html
-              curl -s --create-dirs -o "/home/ec2-user/templates/delete.html" -L "$FOLDER"templates/delete.html
-              curl -s --create-dirs -o "/home/ec2-user/templates/add-update.html" -L "$FOLDER"templates/add-update.html
-              curl -s --create-dirs -o "/home/ec2-user/phonebook-app.py" -L "$FOLDER"phonebook-app.py
-              echo "${"MySQLRDSInstance.Endpoint.Address}" >> dbserver.endpoint
-              python3 /home/ec2-user/phonebook-app.py
+              mkdir templates
+              sudo chmod -R 777 ./
+              wget https://raw.githubusercontent.com/HasanKaval/Hasan_Cl_AWS_Repo/master/aws/projects/004-phonebook-web-application/phonebook-app.py
+              cd templates
+              wget https://raw.githubusercontent.com/HasanKaval/Hasan_Cl_AWS_Repo/master/aws/projects/004-phonebook-web-application/templates/add-update.html
+              wget https://raw.githubusercontent.com/HasanKaval/Hasan_Cl_AWS_Repo/master/aws/projects/004-phonebook-web-application/templates/index.html
+              wget https://raw.githubusercontent.com/HasanKaval/Hasan_Cl_AWS_Repo/master/aws/projects/004-phonebook-web-application/templates/delete.html
+              cd ..
+              echo "${MySQLRDS.Endpoint.Address}" >> dbserver.endpoint
+              python3 phonebook-app.py
 
   WebServerTargetGroup:
     Type: "AWS::ElasticLoadBalancingV2::TargetGroup"
     Properties:
+      HealthCheckIntervalSeconds: 25
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 3
+      Name: phonebook-TG
       Port: 80
       Protocol: HTTP
-      TargetType: instance
+      #TargetType: instance
       VpcId: !GetAtt WebServerSecurityGroup.VpcId
 
   ApplicationLoadBalancer:
     Type: "AWS::ElasticLoadBalancingV2::LoadBalancer"
     Properties:
-      IpAddressType: ipv4
-      Scheme: internet-facing
       SecurityGroups:
         - !GetAtt ALBSecurityGroup.GroupId
       Subnets:
@@ -83,7 +88,7 @@ Resources:
         - subnet-3818ba67
         - subnet-ab1969e6
         - subnet-c0b94df1
-      Type: application
+      #Type: application
 
   ALBListener:
     Type: "AWS::ElasticLoadBalancingV2::Listener"
@@ -98,44 +103,48 @@ Resources:
   WebServerASG:
     Type: "AWS::AutoScaling::AutoScalingGroup"
     Properties:
-      AvailabilityZones:
-        !GetAZs ""
-      DesiredCapacity: 2
+      AvailabilityZones: !GetAZs 
+      DesiredCapacity: '2'
       HealthCheckGracePeriod: 90
       HealthCheckType: ELB
       LaunchTemplate: 
         LaunchTemplateId: !Ref WebServerLaunchTemplate
         Version: !GetAtt WebServerLaunchTemplate.LatestVersionNumber
-      MaxSize: 3 #required
-      MinSize: 1 #required
+      MaxSize: '3' #required
+      MinSize: '1' #required
       TargetGroupARNs:
         - !Ref WebServerTargetGroup
-
-  RDSSecurityGroup:
-    Type: "AWS::RDS::DBSecurityGroup"
-    Properties:
-      DBSecurityGroupIngress: #required
-        - CIDRIP: 0.0.0.0/0
-        #- EC2SecurityGroupId: !GetAtt WebServerSecurityGroup.GroupId
-      GroupDescription: Security Group for RDS private access #required
-      
-  MySQLRDSInstance:
+    
+  MySQLRDS:
     Type: "AWS::RDS::DBInstance"
     Properties:
       AllocatedStorage: '20'
       DBInstanceClass: db.t2.micro #required
-      DBName: 'MyRDS'
-      DBSecurityGroups:
-        - !Ref RDSSecurityGroup
+      DBName: 'MyPhonebook'
+      DeletionProtection: false
       Engine: mysql
       EngineVersion: '8.0.19'
-      MasterUserPassword: 'admin12345678'
-      MasterUsername: 'Admin'
+      MasterUsername: 'admin'
+      MasterUserPassword: 'clarusway-1'
+      Port: '3306'
       PubliclyAccessible: true
       Tags:
         - Key: Name
-          Value: My_RDS  
+          Value: My_RDS
+      VPCSecurityGroups:
+          - !GetAtt RDSSecurityGroup.GroupId
+  
+  RDSSecurityGroup:
+    Type: "AWS::EC2::SecurityGroup"
+    Properties:
+      GroupDescription: Access database 
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 3306
+          ToPort: 3306
+          SourceSecurityGroupId: !GetAtt WebServerSecurityGroup.GroupId
 
+  
 Outputs:
   WebsiteURL:
     Description: Phonebook Application Load Balancer URL

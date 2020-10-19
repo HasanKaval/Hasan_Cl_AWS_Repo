@@ -1,0 +1,185 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: |
+  CloudFormation Template for The Phonebook Application aims to create a phonebook application in Python and deployed as a web application with Flask on AWS Application Load Balancer with Auto Scaling Group of Elastic Compute Cloud (EC2) Instances and Relational Database Service (RDS) using AWS Cloudformation Service
+  
+Parameters:
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: VpcId of your existing Virtual Private Cloud (VPC)
+  Subnets:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: The list of SubnetIds in your Virtual Private Cloud (VPC)
+  KeyName:
+    Description: The EC2 Key Pair to allow SSH access to the instances
+    Type: AWS::EC2::KeyPair::KeyName
+  PolicyTargetValue:
+    Description: Please enter your Target value that triggers the Autoscaling
+    Default: '60'
+    Type: String
+
+
+Resources:
+  mySecGroup:
+    Type: "AWS::EC2::SecurityGroup"
+    Properties:
+      GroupDescription: Enables SSH and HTTP for Flask Web Server
+      GroupName: Phonebook-Sec-Group
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          SourceSecurityGroupId: !GetAtt myALBSecGroup.GroupId
+        
+  myALBSecGroup:
+    Type: "AWS::EC2::SecurityGroup"
+    Properties:
+      GroupDescription: Enable Http for Application Load Balancer
+      SecurityGroupIngress:
+          - IpProtocol: tcp
+            FromPort: 80
+            ToPort: 80
+            CidrIp: 0.0.0.0/0
+
+  mydbEC2SecGroup:
+    Type: "AWS::EC2::SecurityGroup"
+    Properties:
+      GroupDescription: Open database for access
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 3306
+          ToPort: 3306
+          SourceSecurityGroupId: !GetAtt mySecGroup.GroupId
+            # !Ref Phonebook-Sec-Group
+   
+  
+  myAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      AutoScalingGroupName: phonebook-autoscaling
+      LaunchTemplate:
+        LaunchTemplateId: !Ref myLaunchTemplate
+        Version: !GetAtt myLaunchTemplate.LatestVersionNumber
+      AvailabilityZones: !GetAZs 
+      HealthCheckType: ELB
+      DesiredCapacity: '2'
+      HealthCheckGracePeriod: 90
+      MinSize: '1'
+      MaxSize: '3'
+      TargetGroupARNs:
+        - !Ref myALBTargetGroup
+
+  myCPUPolicy:
+    Type: "AWS::AutoScaling::ScalingPolicy"
+    Properties:
+      AutoScalingGroupName: !Ref myAutoScalingGroup
+      PolicyType: TargetTrackingScaling
+      TargetTrackingConfiguration:
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ASGAverageCPUUtilization
+        TargetValue: !Ref PolicyTargetValue
+  
+
+  myApplicationLoadBalancer:
+    Type: "AWS::ElasticLoadBalancingV2::LoadBalancer"
+    Properties:
+      SecurityGroups:
+        - !GetAtt myALBSecGroup.GroupId
+      Name: phonebook-LB
+      Subnets: !Ref Subnets
+       
+  
+
+  myALBListener:
+    Type: "AWS::ElasticLoadBalancingV2::Listener"
+    Properties:
+      DefaultActions: 
+        - Type: forward
+          TargetGroupArn: !Ref myALBTargetGroup
+      LoadBalancerArn: !Ref myApplicationLoadBalancer
+      Port: 80
+      Protocol: HTTP
+  
+  
+  myALBTargetGroup:
+    Type: "AWS::ElasticLoadBalancingV2::TargetGroup"
+    Properties:
+      HealthCheckIntervalSeconds: 25
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 3
+      Name: phonebook-targetGroup
+      Port: 80
+      Protocol: HTTP
+      UnhealthyThresholdCount: 3
+      VpcId: !Ref VpcId
+
+  myRDSDatabase:
+    Type: "AWS::RDS::DBInstance"
+    DeletionPolicy: Delete
+    Properties:
+      AllocatedStorage: "20"
+      AllowMajorVersionUpgrade: false
+      AutoMinorVersionUpgrade: true
+      BackupRetentionPeriod: 0
+      DBInstanceClass: db.t2.micro #required
+      DBInstanceIdentifier: rdsdatabase
+      DBName: phonebook
+      DeletionProtection: false
+      Engine: mysql
+      EngineVersion: "8.0.20"
+      MasterUserPassword: "clarusway-1"
+      MasterUsername: "admin"
+      Port: "3306"
+      PreferredBackupWindow: "01:00-01:45"
+      PreferredMaintenanceWindow: "mon:02:30-mon:03:30"
+      PubliclyAccessible: true
+      StorageType: gp2
+      Tags:
+        - Key: Name
+          Value: myrds
+      VPCSecurityGroups:
+        - !GetAtt mydbEC2SecGroup.GroupId
+  
+  myLaunchTemplate:
+    Type: "AWS::EC2::LaunchTemplate"
+    Properties:
+      LaunchTemplateName: Phonebook
+      LaunchTemplateData:
+        ImageId: ami-0947d2ba12ee1ff75
+        InstanceType: t2.micro
+        KeyName: !Ref KeyName
+        SecurityGroups: 
+          - !Ref mySecGroup
+        TagSpecifications:
+            - ResourceType: instance
+              Tags:
+                  - Key: Name
+                    Value: Phonebook
+        UserData:
+          Fn::Base64:
+            !Sub |
+              #! /bin/bash
+              yum update -y
+              yum install python3 -y
+              pip3 install flask
+              pip3 install flask_sqlalchemy
+              pip3 install flask_mysql
+              cd /home/ec2-user
+              wget -P templates https://raw.githubusercontent.com/HasanKaval/Hasan_Cl_AWS_Repo/master/aws/projects/004-phonebook-web-application/templates/index.html
+              wget -P templates https://raw.githubusercontent.com/HasanKaval/Hasan_Cl_AWS_Repo/master/aws/projects/004-phonebook-web-application/templates/delete.html
+              wget -P templates https://raw.githubusercontent.com/HasanKaval/Hasan_Cl_AWS_Repo/master/aws/projects/004-phonebook-web-application/templates/add-update.html
+              wget https://raw.githubusercontent.com/HasanKaval/Hasan_Cl_AWS_Repo/master/aws/projects/004-phonebook-web-application/phonebook-app.py
+              echo "${myRDSDatabase.Endpoint.Address}" >> dbserver.endpoint
+              python3 phonebook-app.py
+  
+  
+Outputs:
+  URL:
+    Description: The URL of the website
+    Value: !Join 
+      - ''
+      - - 'http://'
+        - !GetAtt myApplicationLoadBalancer.DNSName

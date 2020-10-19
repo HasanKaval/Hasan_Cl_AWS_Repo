@@ -1,11 +1,7 @@
 AWSTemplateFormatVersion: 2010-09-09
-
 Description: |
-  The Milliseconds Converter Application aims to convert the given time in milliseconds into hours,
-  minutes, and seconds. The application is to be coded in Python and deployed as a web application
-  with Flask on AWS Application Load Balancer with Auto Scaling Group of Elastic Compute Cloud (EC2) Instances
-  using AWS Cloudformation Service.
-
+  Cloudformation template for milliseconds converter application. This app runs on application load balancer. In addition, it is observed by Autoscaling Group
+  
 Resources:
   ALBSecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -37,14 +33,14 @@ Resources:
       LaunchTemplateData: 
         ImageId: ami-0947d2ba12ee1ff75
         InstanceType: t2.micro
-        KeyName: hans_1_NVA
+        KeyName: serdar
         SecurityGroupIds: 
           - !GetAtt WebServerSecurityGroup.GroupId
         TagSpecifications:
           - ResourceType: instance
             Tags:
               - Key: Name
-                Value: !Sub Web Server of ${AWS::StackName}
+                Value: !Sub Web Server of ${AWS::StackName} 
         UserData: 
           Fn::Base64:
             !Sub |
@@ -53,7 +49,7 @@ Resources:
               yum install python3 -y
               pip3 install flask
               TOKEN="************************************"
-              FOLDER="https://$TOKEN@raw.githubusercontent.com/HasanKaval/Hasan_Cl_AWS_Repo/master/aws/projects/002-milliseconds-converter/"
+              FOLDER="https://$TOKEN@raw.githubusercontent.com/serdarcw/milliseconds_project/master/"
               curl -s --create-dirs -o "/home/ec2-user/templates/index.html" -L "$FOLDER"templates/index.html
               curl -s --create-dirs -o "/home/ec2-user/templates/result.html" -L "$FOLDER"templates/result.html
               curl -s --create-dirs -o "/home/ec2-user/app.py" -L "$FOLDER"app.py
@@ -75,12 +71,12 @@ Resources:
       SecurityGroups:
         - !GetAtt ALBSecurityGroup.GroupId
       Subnets:
-        - subnet-1853f27e
-        - subnet-207ee52e
-        - subnet-22ad0203
-        - subnet-3818ba67
-        - subnet-ab1969e6
-        - subnet-c0b94df1
+        - subnet-077c9758
+        - subnet-3246e63c
+        - subnet-3ccd235a
+        - subnet-8d8dbfb3
+        - subnet-c41ba589
+        - subnet-ed49bccc
       Type: application
 
   ALBListener:

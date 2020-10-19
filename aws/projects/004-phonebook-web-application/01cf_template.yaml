@@ -1,10 +1,7 @@
 AWSTemplateFormatVersion: 2010-09-09
 
 Description: |
-  The Milliseconds Converter Application aims to convert the given time in milliseconds into hours,
-  minutes, and seconds. The application is to be coded in Python and deployed as a web application
-  with Flask on AWS Application Load Balancer with Auto Scaling Group of Elastic Compute Cloud (EC2) Instances
-  using AWS Cloudformation Service.
+  The Phonebook Application aims to create a phonebook application in Python and deployed as a web application with Flask on AWS Application Load Balancer with Auto Scaling Group of Elastic Compute Cloud (EC2) Instances and Relational Database Service (RDS) using AWS Cloudformation Service.
 
 Resources:
   ALBSecurityGroup:
@@ -30,6 +27,7 @@ Resources:
           FromPort: 80
           ToPort: 80
           SourceSecurityGroupId: !GetAtt ALBSecurityGroup.GroupId
+       
   
   WebServerLaunchTemplate:
     Type: AWS::EC2::LaunchTemplate
@@ -44,20 +42,26 @@ Resources:
           - ResourceType: instance
             Tags:
               - Key: Name
-                Value: !Sub Web Server of ${AWS::StackName}
+                Value: !Sub Web Server of ${AWS::StackName} 
         UserData: 
           Fn::Base64:
             !Sub |
               #! /bin/bash
               yum update -y
               yum install python3 -y
-              pip3 install flask
-              TOKEN="************************************"
-              FOLDER="https://$TOKEN@raw.githubusercontent.com/HasanKaval/Hasan_Cl_AWS_Repo/master/aws/projects/002-milliseconds-converter/"
-              curl -s --create-dirs -o "/home/ec2-user/templates/index.html" -L "$FOLDER"templates/index.html
-              curl -s --create-dirs -o "/home/ec2-user/templates/result.html" -L "$FOLDER"templates/result.html
-              curl -s --create-dirs -o "/home/ec2-user/app.py" -L "$FOLDER"app.py
-              python3 /home/ec2-user/app.py
+              yum install git -y
+              ip3 install flask
+              pip3 install flask-sqlalchemy
+              pip3 install flask-mysql
+              mkdir templates
+              sudo chmod -R 777 ./
+              wget https://raw.githubusercontent.com/HasanKaval/Hasan_Cl_AWS_Repo/master/aws/projects/  004-phonebook-web-application/phonebook-app.py
+              cd templates
+              wget https://raw.githubusercontent.com/HasanKaval/Hasan_Cl_AWS_Repo/master/aws/projects/  004-phonebook-web-application/templates/add-update.html
+              wget https://raw.githubusercontent.com/HasanKaval/Hasan_Cl_AWS_Repo/master/aws/projects/  004-phonebook-web-application/templates/index.html
+              wget https://raw.githubusercontent.com/HasanKaval/Hasan_Cl_AWS_Repo/master/aws/projects/  004-phonebook-web-application/templates/delete.html
+              cd ..
+              python3 phonebook-app.py
 
   WebServerTargetGroup:
     Type: "AWS::ElasticLoadBalancingV2::TargetGroup"
@@ -96,23 +100,46 @@ Resources:
   WebServerASG:
     Type: "AWS::AutoScaling::AutoScalingGroup"
     Properties:
-      AvailabilityZones:
-        !GetAZs ""
-      DesiredCapacity: 2
+      AvailabilityZones: !GetAZs
+      DesiredCapacity: '2'
       HealthCheckGracePeriod: 90
       HealthCheckType: ELB
       LaunchTemplate: 
         LaunchTemplateId: !Ref WebServerLaunchTemplate
         Version: !GetAtt WebServerLaunchTemplate.LatestVersionNumber
-      MaxSize: 3 #required
-      MinSize: 1 #required
+      MinSize: '1' #required
+      MaxSize: '3' #required
       TargetGroupARNs:
         - !Ref WebServerTargetGroup
-    
+
+  RDSSecurityGroup:
+    Type: "AWS::RDS::DBSecurityGroup"
+    Properties:
+      DBSecurityGroupIngress: #required
+        - CIDRIP: 0.0.0.0/0
+        - EC2SecurityGroupId: !GetAtt WebServerSecurityGroup.GroupId
+      GroupDescription: Security Group for RDS public access #required
+      
+  MySQLRDSInstance:
+    Type: "AWS::RDS::DBInstance"
+    Properties:
+      AllocatedStorage: '20'
+      DBInstanceClass: db.t2.micro #required
+      DBName: 'MyPhonebook'
+      DBSecurityGroups:
+        - !Ref RDSSecurityGroup
+      Engine: mysql
+      EngineVersion: '8.0.19'
+      MasterUserPassword: 'admin12345678'
+      MasterUsername: 'Admin'
+      PubliclyAccessible: true
+      Tags:
+        - Key: Name
+          Value: My_RDS  
 
 Outputs:
   WebsiteURL:
-    Description: Milliseconds Converter Application Load Balancer URL
+    Description: Phonebook Application Load Balancer URL
     Value: !Sub 
       - http://${ALBaddress}
       - ALBaddress: !GetAtt ApplicationLoadBalancer.DNSName
