@@ -1,0 +1,98 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: |
+  Kittens Carousel is a static website application deployed on AWS Simple Storage Service (S3), served through Cloudfront and Route 53 using AWS Cloudformation Service.
+
+Parameters:
+  
+  
+  
+  
+  
+  
+  
+Resources:  
+  
+  WebServerHostedZone:
+    Type: "AWS::Route53::HostedZone"
+    Properties:
+      HostedZoneConfig:
+        HostedZoneConfig
+      HostedZoneTags:
+        - HostedZoneTag
+      Name: String #required
+      QueryLoggingConfig:
+        QueryLoggingConfig
+      VPCs:
+        - VPC
+  
+  
+  #myDNSRecord2:
+  #Type: AWS::Route53::RecordSet
+  #Properties:
+  #  HostedZoneName: example.com.
+  #  Name: mysite.example.com.
+  #  Type: A
+  #  TTL: '900'
+    
+  
+  WebServerSimpleRecord:
+    Type: "AWS::Route53::RecordSet"
+    Properties:
+      HostedZoneName: !Ref hasankaval.com PAR EKLE
+      MultiValueAnswer: Boolean
+      Name: !Ref kittens.hasankaval.com PAR EKLE
+      TTL: 900 #check et
+      Type: A #required
+     
+  KittensCertificate:
+    Type: "AWS::CertificateManager::Certificate"
+    Properties:
+      DomainName: hasankaval.com #required
+      DomainValidationOptions:
+        - DomainValidationOption
+      SubjectAlternativeNames:
+        - String
+      Tags:
+        - Tag
+      ValidationMethod: String
+  
+  
+   
+  
+  LogicalID:
+    Type: "AWS::CloudFront::Distribution"
+    Properties:
+      DistributionConfig: #required
+        Aliases: 
+          - String
+        CacheBehaviors: 
+          - CacheBehavior
+        Comment: String
+        CustomErrorResponses: 
+          - CustomErrorResponse
+        DefaultCacheBehavior: 
+          DefaultCacheBehavior
+        DefaultRootObject: String
+        Enabled: Boolean
+        HttpVersion: String
+        IPV6Enabled: Boolean
+        Logging: 
+          Logging
+        OriginGroups: 
+          OriginGroups
+        Origins: 
+          - Origin
+        PriceClass: String
+        Restrictions: 
+          Restrictions
+        ViewerCertificate: 
+          ViewerCertificate
+        WebACLId: String
+            Tags:
+              - Tag
+  
+  
+  
+  
+  
+Outputs:

@@ -16,6 +16,7 @@ Parameters:
     Description: Please enter your Target value that triggers the Autoscaling
     Default: '60'
     Type: String
+  DNSName:
 
 
 Resources:
