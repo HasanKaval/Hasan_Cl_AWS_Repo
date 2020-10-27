@@ -81,7 +81,7 @@ Resources:
       - Name: !Ref KittensDomainName
         Type: A
         AliasTarget:
-          HostedZoneId: Z03661511B0IH1P60UMOC
+          HostedZoneId: Z2FDTNDATAQYW2
           DNSName: !GetAtt KittensCloudfront.DomainName
 Outputs:
   BucketName:
