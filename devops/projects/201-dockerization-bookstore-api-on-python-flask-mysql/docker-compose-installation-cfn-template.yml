@@ -50,6 +50,14 @@ Resources:
           curl -L "https://github.com/docker/compose/releases/download/1.26.2/docker-compose-$(uname -s)-$(uname -m)" \
           -o /usr/local/bin/docker-compose
           chmod +x /usr/local/bin/docker-compose
+          mkdir app
+          cd app
+          wget https://raw.githubusercontent.com/HasanKaval/Hasan_Cl_AWS_Repo/master/devops/projects/201-dockerization-bookstore-api-on-python-flask-mysql/docker-compose-installation-cfn-template.yml
+          wget https://raw.githubusercontent.com/HasanKaval/Hasan_Cl_AWS_Repo/master/devops/projects/201-dockerization-bookstore-api-on-python-flask-mysql/Dockerfile
+          wget https://raw.githubusercontent.com/HasanKaval/Hasan_Cl_AWS_Repo/master/devops/projects/201-dockerization-bookstore-api-on-python-flask-mysql/bookstore-api.py
+          wget https://raw.githubusercontent.com/HasanKaval/Hasan_Cl_AWS_Repo/master/devops/projects/201-dockerization-bookstore-api-on-python-flask-mysql/requirements.txt
+          docker-compose up
+
 Outputs:
   WebsiteURL:
     Description: Docker Machine DNS Name
