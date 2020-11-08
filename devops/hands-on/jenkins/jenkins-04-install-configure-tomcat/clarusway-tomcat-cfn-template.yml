@@ -39,7 +39,7 @@ Resources:
       Tags:                
         -                        
           Key: Name
-          Value: !Sub joe-blue-stage-${AWS::StackName}   
+          Value: !Sub HansStage-${AWS::StackName}   
       UserData:
         Fn::Base64: |
           #! /bin/bash
@@ -62,7 +62,7 @@ Resources:
       Tags:                
         -                        
           Key: Name
-          Value: !Sub joe-blue-production-${AWS::StackName}   
+          Value: !Sub HansProd-${AWS::StackName}   
       UserData:
         Fn::Base64: |
           #! /bin/bash
