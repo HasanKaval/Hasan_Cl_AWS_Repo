@@ -184,7 +184,7 @@ docker service create \
 docker service ps viz
 ```
 
-- Start a `nginx service` with 5 replicas and show the replicas running on visualizer.
+- Start an `nginx service` with 5 replicas and show the replicas running on visualizer.
 
 ```bash
 docker service create --name webserver --replicas=5 -p 80:80 -d nginx
@@ -265,18 +265,6 @@ docker swarm leave
 docker service rm glbserver
 ```
 
-- Leave manager nodes from swarm
-
-```bash
-docker swarm leave --force
-```
-
-- Join manager and worker nodes again.
-
-```bash
-docker swarm join --token SWMTKN-1-1nkizkzhhqk4i7blzwww3znwhd0lqfsu3nlh9gl1pe7mco84up-5468yx80p9nfowv4eck0dqrvd 172.31.38.249:2377
-```
-
 ## Part 4 - Updating and Rolling Back in Docker Swarm
 
 - Create a new service of `clarusways/container-info:1.0` with 10 replicas.
@@ -309,4 +297,16 @@ watch docker service ps clarusweb
 
 ```bash
 docker service rm clarusweb
+```
+
+- Leave manager nodes from swarm
+
+```bash
+docker swarm leave --force
+```
+
+- Join manager and worker nodes again.
+
+```bash
+docker swarm join --token SWMTKN-1-1nkizkzhhqk4i7blzwww3znwhd0lqfsu3nlh9gl1pe7mco84up-5468yx80p9nfowv4eck0dqrvd 172.31.38.249:2377
 ```

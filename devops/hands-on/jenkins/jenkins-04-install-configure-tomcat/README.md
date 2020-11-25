@@ -197,7 +197,7 @@ cd /opt/tomcat/conf
 ## Part 5 - Auto start of tomcat server at boot
 
 ```bash
-crontab -e
+sudo crontab -e
 ```
 
 Enter the following line and save it
