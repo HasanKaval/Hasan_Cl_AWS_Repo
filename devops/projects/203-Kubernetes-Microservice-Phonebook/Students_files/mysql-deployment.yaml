@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mysql-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      name: mysql
+  template:
+    metadata:
+      labels:
+        name: mysql
+        app: web-server-app
+        app: result-server-app
+    spec:
+      containers:
+      - image: mysql:5.7
+        name: mysql
+        ports:
+          - name: mysql
+          containerPort: 3306
+        env:
+            - name: "MYSQL_ROOT_PASSWORD"
+              value: "P123456p" 
+            - name: "MYSQL_DATABASE_HOST"
+              value: mysql-service
+            - name: "MYSQL_DATABASE_PASSWORD"
+              value: "Clarusway_1"
+            - name: "MYSQL_DATABASE_DB"
+              value: "mysql"
+            - name: "MYSQL_DATABASE_USER"
+              value: "admin"
+        volumeMounts:
+          - name: mysql-pv-storage
+            mountPath: /mnt/data
+      volumes:
+        #- name: mongo-storage
+        #  hostPath:
+        #    path: /data/db
+        - name: mysql-pv-storage
+          persistentVolumeClaim:
+            claimName: mysql-pv-claim
+                      

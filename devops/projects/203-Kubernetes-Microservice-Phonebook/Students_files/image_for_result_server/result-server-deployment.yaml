@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: result-server-deployment
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      name: result-server
+  template:
+    metadata:
+      labels:
+        name: result-server
+        app: result-server-app
+    spec:
+      containers: 
+        - name: result-server
+        image: hansk001/project203-resultserver-app
+        imagePullPolicy: Always
+        ports: 
+        - containerPort: 80
+        env:
+        - name: "MYSQL_ROOT_PASSWORD"
+          value: "P123456p" 
+        - name: "MYSQL_DATABASE_HOST"
+          value: "mysql-service"
+        - name: "MYSQL_DATABASE_PASSWORD"
+          value: "Clarusway_1"
+        - name: "MYSQL_DATABASE_DB"
+          value: "mysql"
+        - name: "MYSQL_DATABASE_USER"
+          value: "admin"
+          

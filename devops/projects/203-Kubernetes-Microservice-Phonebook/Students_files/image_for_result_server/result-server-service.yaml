@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: result-server-service
+  labels:
+    name: result-server
+    app: result-server-app
+spec:
+  selector:
+    name: result-server 
+  type: NodePort
+  ports:
+   - protocol: TCP #default
+     name: http
+     port: 80
+     targetPort: 80
+     nodePort: 30002
+     
