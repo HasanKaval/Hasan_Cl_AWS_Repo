@@ -6,39 +6,35 @@ spec:
   replicas: 1
   selector:
     matchLabels:
-      name: mysql
+      app: mysql-pod
   template:
     metadata:
+      name: mysql-pod
       labels:
-        name: mysql
-        app: web-server-app
-        app: result-server-app
+        app: mysql-pod
     spec:
       containers:
       - image: mysql:5.7
-        name: mysql
-        ports:
-          - name: mysql
-          containerPort: 3306
-        env:
-            - name: "MYSQL_ROOT_PASSWORD"
-              value: "P123456p" 
-            - name: "MYSQL_DATABASE_HOST"
-              value: mysql-service
-            - name: "MYSQL_DATABASE_PASSWORD"
-              value: "Clarusway_1"
-            - name: "MYSQL_DATABASE_DB"
-              value: "mysql"
-            - name: "MYSQL_DATABASE_USER"
-              value: "admin"
+      imagePullPolicy: Always
+      name: mysql
+      env:
+        - name: MYSQL_ROOT_PASSWORD
+          value: P123456p 
+        - name: "MYSQL_DATABASE_HOST"
+          value: "mysql-service"
+        - name: "MYSQL_DATABASE_PASSWORD"
+          value: "Clarusway_1"
+        - name: "MYSQL_DATABASE_DB"
+          value: "mysql"
+        - name: "MYSQL_USER"
+          value: "admin"
+      ports:
+      - containerPort: 3306
         volumeMounts:
-          - name: mysql-pv-storage
-            mountPath: /mnt/data
-      volumes:
-        #- name: mongo-storage
-        #  hostPath:
-        #    path: /data/db
         - name: mysql-pv-storage
-          persistentVolumeClaim:
-            claimName: mysql-pv-claim
+        mountPath: /var/lib/mysql
+    volumes:
+    - name: mysql-pv-storage
+    persistentVolumeClaim:
+      claimName: mysql-pv-claim
                       
