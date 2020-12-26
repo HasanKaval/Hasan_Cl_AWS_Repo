@@ -209,6 +209,7 @@ chmod +x /usr/local/bin/docker-compose
 yum install git -y
 yum install java-11-amazon-corretto -y
 git clone https://github.com/clarusway/petclinic-microservices.git
+cd petclinic-microservices
 git fetch
 git checkout dev
 ```
@@ -725,6 +726,7 @@ APP_IP = os.environ['MASTER_PUBLIC_IP']
 url = "http://"+APP_IP.strip()+":8080/"
 print(url)
 driver.get(url)
+sleep(3)
 owners_link = driver.find_element_by_link_text("OWNERS")
 owners_link.click()
 sleep(2)
@@ -787,9 +789,9 @@ fn_field = driver.find_element_by_name('telephone')
 fn_field.send_keys('+1230576803')
 sleep(1)
 fn_field.send_keys(Keys.ENTER)
-sleep(1)
-# Wait 2 second to get updated Owner List
-sleep(2)
+
+# Wait 10 seconds to get updated Owner List
+sleep(10)
 # Verify that new user is added to Owner List
 if fn in driver.page_source:
     print(fn, 'is added and found in the Owners Table')
@@ -824,11 +826,12 @@ APP_IP = os.environ['MASTER_PUBLIC_IP']
 url = "http://"+APP_IP.strip()+":8080/"
 print(url)
 driver.get(url)
+sleep(3)
 vet_link = driver.find_element_by_link_text("VETERINARIANS")
 vet_link.click()
 
 # Verify that table loaded
-sleep(1)
+sleep(5)
 verify_table = WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.TAG_NAME, "table")))
 
 print("Table loaded")
@@ -1548,7 +1551,8 @@ docker build --force-rm -t "${IMAGE_TAG_PROMETHEUS_SERVICE}" "${WORKSPACE}/docke
 - Prepare a script to push the dev docker images to the ECR repo and save it as `push-dev-docker-images-to-ecr.sh` and save it under `jenkins` folder.
 
 ```bash
-aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_REGISTRY}
+# Provide credentials for Docker to login the AWS ECR and push the images
+aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_REGISTRY} 
 docker push "${IMAGE_TAG_ADMIN_SERVER}"
 docker push "${IMAGE_TAG_API_GATEWAY}"
 docker push "${IMAGE_TAG_CONFIG_SERVER}"
@@ -1568,6 +1572,32 @@ git add .
 git commit -m 'added scripts for qa automation environment'
 git push --set-upstream origin feature/msp-17
 ```
+
+  - OPTIONAL: Create a Jenkins job with the name of `test-msp-17-scripts` to test the scripts:   
+      * Select `Freestyle project` and click `OK`
+      * Select github project and write the url to your repository's page into `Project url` (https://github.com/[your-github-account]/petclinic-microservices)
+      * Under the `Source Code Management` select `Git` 
+      * Write the url of your repository into the `Repository URL` (https://github.com/[your-github-account]/petclinic-microservices.git)
+      * Add `*/feature/msp-17` branch to `Branches to build`
+      * Click `Add build step` under `Build` and select `Execute Shell`
+      * Write below script into the `Command`
+        ```bash
+        PATH="$PATH:/usr/local/bin"
+        APP_REPO_NAME="clarusway-repo/petclinic-app-dev" # Write your own repo name
+        AWS_REGION="us-east-1" #Update this line if you work on another region
+        ECR_REGISTRY="046402772087.dkr.ecr.us-east-1.amazonaws.com" # Replace this line with your ECR name
+        aws ecr create-repository \
+            --repository-name ${APP_REPO_NAME} \
+            --image-scanning-configuration scanOnPush=false \
+            --image-tag-mutability MUTABLE \
+            --region ${AWS_REGION}
+        . ./jenkins/package-with-maven-container.sh
+        . ./jenkins/prepare-tags-ecr-for-dev-docker-images.sh
+        . ./jenkins/build-dev-docker-images-for-ecr.sh
+        . ./jenkins/push-dev-docker-images-to-ecr.sh
+        ```
+      * Click `Save`
+      * Click `Build now` to manually start the job.
 
 - Prepare a docker compose file for swarm deployment and save it as `docker-compose-swarm-dev.yml`.
 
@@ -1819,8 +1849,6 @@ git push --set-upstream origin feature/msp-17
 PATH="$PATH:/usr/local/bin"
 ansible-playbook -vvv --connection=local --inventory 127.0.0.1, --extra-vars "workspace=${WORKSPACE} master_public_ip=${GRAND_MASTER_PUBLIC_IP}" ./ansible/playbooks/pb_run_selenium_jobs.yaml
 ```
-- Create a Jenkins pipeline with name of `petclinic-nightly` with following script to run QA automation tests and configure a `cron job` to trigger the pipeline every night at midnight (`0 0 * * *`) on `dev` branch. Petclinic nightly build pipeline should be built on temporary QA automation environment.
-
 - Prepare a Jenkinsfile for `petclinic-nightly` builds and save it as `jenkinsfile-petclinic-nightly` under `jenkins` folder.
 
 ```groovy
@@ -2009,6 +2037,8 @@ pipeline {
 }
 ```
 
+- Create a Jenkins pipeline with name of `petclinic-nightly` with following script to run QA automation tests and configure a `cron job` to trigger the pipeline every night at midnight (`0 0 * * *`) on `dev` branch. Petclinic nightly build pipeline should be built on temporary QA automation environment.
+
 - Commit the change, then push the script to the remote repo.
 
 ```bash
@@ -2020,4 +2050,1040 @@ git merge feature/msp-17
 git push origin dev
 ```
 
-## MSP 18 - Create a QA Environment on Docker Swarm with Clouldformation and Ansible
+## MSP 18 - Create a QA Environment on Docker Swarm with Cloudformation and Ansible
+
+
+- Create `feature/msp-18` branch from `dev`.
+
+```bash
+git checkout dev
+git branch feature/msp-18
+git checkout feature/msp-18
+```
+
+- Prepare a Cloudformation template for `QA` Docker Swarm Infrastructure consisting of 3 Managers, 2 Worker Instances and save it as `qa-docker-swarm-infrastructure-cfn-template.yml` under `infrastructure` folder.
+
+- Grant permissions to Docker Machines within Cloudformation template to create ECR Registry, push or pull Docker images to/from ECR Repo.
+
+- Create a Jenkins Job with the name of `create-permanent-key-pair-for-petclinic-qa-env` for Ansible key pair to be used in QA environment using following script, and save the script as `create-permanent-key-pair-for-qa-environment.sh` under `jenkins` folder.
+
+```bash
+PATH="$PATH:/usr/local/bin"
+APP_NAME="petclinic"
+CFN_KEYPAIR="matt-${APP_NAME}-qa.key"
+AWS_REGION="us-east-1"
+aws ec2 create-key-pair --region ${AWS_REGION} --key-name ${CFN_KEYPAIR} --query "KeyMaterial" --output text > ${CFN_KEYPAIR}
+chmod 400 ${CFN_KEYPAIR}
+mkdir -p ${JENKINS_HOME}/.ssh
+mv ${CFN_KEYPAIR} ${JENKINS_HOME}/.ssh/${CFN_KEYPAIR}
+ls -al ${JENKINS_HOME}/.ssh
+```
+
+- Prepare a script for a Permanent QA Infrastructure with AWS Cloudformation using AWS CLI.
+
+```bash
+PATH="$PATH:/usr/local/bin"
+APP_NAME="petclinic"
+APP_STACK_NAME="Matt-$APP_NAME-App-QA-${BUILD_NUMBER}"
+CFN_KEYPAIR="matt-${APP_NAME}-qa.key"
+CFN_TEMPLATE="./infrastructure/qa-docker-swarm-infrastructure-cfn-template.yml"
+AWS_REGION="us-east-1"
+aws cloudformation create-stack --region ${AWS_REGION} --stack-name ${APP_STACK_NAME} --capabilities CAPABILITY_IAM --template-body file://${CFN_TEMPLATE} --parameters ParameterKey=KeyPairName,ParameterValue=${CFN_KEYPAIR}
+```
+
+- Prepare dynamic inventory file with name of `qa_stack_dynamic_inventory_aws_ec2.yaml` for Ansible under `ansible/inventory` folder using Docker machines private IP addresses.
+
+```yaml
+plugin: aws_ec2
+regions:
+  - "us-east-1"
+filters:
+  tag:app-stack-name: APP_STACK_NAME
+  tag:environment: qa
+keyed_groups:
+  - key: tags['app-stack-name']
+    prefix: 'app_stack_'
+    separator: ''
+  - key: tags['swarm-role']
+    prefix: 'role_'
+    separator: ''
+  - key: tags['environment']
+    prefix: 'env_'
+    separator: ''
+  - key: tags['server']
+    separator: ''
+hostnames:
+  - "private-ip-address"
+compose:
+  ansible_user: "'ec2-user'"
+```
+
+- Prepare script to create a `QA` Environment for Release on Docker Swarm using the same playbooks created for `Dev` environment.
+
+```bash
+PATH="$PATH:/usr/local/bin"
+APP_NAME="petclinic"
+CFN_KEYPAIR="matt-${APP_NAME}-qa.key"
+APP_STACK_NAME="Matt-$APP_NAME-App-QA-${BUILD_NUMBER}"
+export ANSIBLE_PRIVATE_KEY_FILE="${JENKINS_HOME}/.ssh/${CFN_KEYPAIR}"
+export ANSIBLE_HOST_KEY_CHECKING=False
+sed -i "s/APP_STACK_NAME/$APP_STACK_NAME/" ./ansible/inventory/qa_stack_dynamic_inventory_aws_ec2.yaml
+# Swarm Setup for all nodes (instances)
+ansible-playbook -i ./ansible/inventory/qa_stack_dynamic_inventory_aws_ec2.yaml -b ./ansible/playbooks/pb_setup_for_all_docker_swarm_instances.yaml
+# Swarm Setup for Grand Master node
+ansible-playbook -i ./ansible/inventory/qa_stack_dynamic_inventory_aws_ec2.yaml -b ./ansible/playbooks/pb_initialize_docker_swarm.yaml
+# Swarm Setup for Other Managers nodes
+ansible-playbook -i ./ansible/inventory/qa_stack_dynamic_inventory_aws_ec2.yaml -b ./ansible/playbooks/pb_join_docker_swarm_managers.yaml
+# Swarm Setup for Workers nodes
+ansible-playbook -i ./ansible/inventory/qa_stack_dynamic_inventory_aws_ec2.yaml -b ./ansible/playbooks/pb_join_docker_swarm_workers.yaml
+```
+
+- Prepare a Jenkinsfile to create a QA Environment on Docker Swarm manually and save it as `jenkinsfile-create-qa-environment-on-docker-swarm` under `jenkins` folder.
+
+```groovy
+pipeline {
+    agent { label "master" }
+    environment {
+        PATH=sh(script:"echo $PATH:/usr/local/bin", returnStdout:true).trim()
+        APP_NAME="petclinic"
+        APP_STACK_NAME="Matt-$APP_NAME-App-QA-${BUILD_NUMBER}"
+        AWS_REGION="us-east-1"
+        CFN_KEYPAIR="matt-${APP_NAME}-qa.key"
+        CFN_TEMPLATE="./infrastructure/qa-docker-swarm-infrastructure-cfn-template.yml"
+        ANSIBLE_PRIVATE_KEY_FILE="${JENKINS_HOME}/.ssh/${CFN_KEYPAIR}"
+        ANSIBLE_HOST_KEY_CHECKING="False"
+    }
+    stages {
+        stage('Create QA Environment Infrastructure') {
+            steps {
+                echo 'Creating Infrastructure for QA Environment with Cloudfomation'
+                sh "aws cloudformation create-stack --region ${AWS_REGION} --stack-name ${APP_STACK_NAME} --capabilities CAPABILITY_IAM --template-body file://${CFN_TEMPLATE} --parameters ParameterKey=KeyPairName,ParameterValue=${CFN_KEYPAIR}"
+
+                script {
+                    while(true) {
+                        echo "Docker Grand Master is not UP and running yet. Will try to reach again after 10 seconds..."
+                        sleep(10)
+
+                        ip = sh(script:"aws ec2 describe-instances --region ${AWS_REGION} --filters Name=tag-value,Values=grand-master Name=tag-value,Values=${APP_STACK_NAME} --query Reservations[*].Instances[*].[PublicIpAddress] --output text", returnStdout:true).trim()
+
+                        if (ip.length() >= 7) {
+                            echo "Docker Grand Master Public Ip Address Found: $ip"
+                            env.GRAND_MASTER_PUBLIC_IP = "$ip"
+                            break
+                        }
+                    }
+                    while(true) {
+                        try{
+                            sh "ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -i ${JENKINS_HOME}/.ssh/${CFN_KEYPAIR} ec2-user@${GRAND_MASTER_PUBLIC_IP} hostname"
+                            echo "Docker Grand Master is reachable with SSH."
+                            break
+                        }
+                        catch(Exception){
+                            echo "Could not connect to Docker Grand Master with SSH, I will try again in 10 seconds"
+                            sleep(10)
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Create Docker Swarm for QA Environment') {
+            steps {
+                echo "Setup Docker Swarm for QA Environment for ${APP_NAME} App"
+                echo "Update dynamic environment"
+                sh "sed -i 's/APP_STACK_NAME/${APP_STACK_NAME}/' ./ansible/inventory/qa_stack_dynamic_inventory_aws_ec2.yaml"
+                echo "Swarm Setup for all nodes (instances)"
+                sh "ansible-playbook -i ./ansible/inventory/qa_stack_dynamic_inventory_aws_ec2.yaml -b ./ansible/playbooks/pb_setup_for_all_docker_swarm_instances.yaml"
+                echo "Swarm Setup for Grand Master node"
+                sh "ansible-playbook -i ./ansible/inventory/qa_stack_dynamic_inventory_aws_ec2.yaml -b ./ansible/playbooks/pb_initialize_docker_swarm.yaml"
+                echo "Swarm Setup for Other Managers nodes"
+                sh "ansible-playbook -i ./ansible/inventory/qa_stack_dynamic_inventory_aws_ec2.yaml -b ./ansible/playbooks/pb_join_docker_swarm_managers.yaml"
+                echo "Swarm Setup for Workers nodes"
+                sh "ansible-playbook -i ./ansible/inventory/qa_stack_dynamic_inventory_aws_ec2.yaml -b ./ansible/playbooks/pb_join_docker_swarm_workers.yaml"
+            }
+        }
+    }
+    post {
+        failure {
+            echo 'Tear down the Docker Swarm infrastructure using AWS CLI'
+            sh "aws cloudformation delete-stack --region ${AWS_REGION} --stack-name ${APP_STACK_NAME}"
+        }
+    }
+}
+```
+
+- Create a pipeline on Jenkins Server with name of `create-qa-environment-on-docker-swarm` and create QA environment manually on `dev` branch.
+
+- Commit the change, then push the scripts to the remote repo.
+
+```bash
+git add .
+git commit -m "added jenkinsfile for creating manual qa environment"
+git push --set-upstream origin feature/msp-18
+git checkout dev
+git merge feature/msp-18
+git push origin dev
+```
+
+## MSP 19 - Prepare Build Scripts for QA Environment
+
+- Create `feature/msp-19` branch from `dev`.
+
+```bash
+git checkout dev
+git branch feature/msp-19
+git checkout feature/msp-19
+```
+
+- Create a Jenkins Job and name it as `create-ecr-docker-registry-for-petclinic-qa` to create Docker Registry for `QA` manually on AWS ECR.
+
+```bash
+PATH="$PATH:/usr/local/bin"
+APP_REPO_NAME="clarusway-repo/petclinic-app-qa"
+AWS_REGION="us-east-1"
+
+aws ecr create-repository \
+  --repository-name ${APP_REPO_NAME} \
+  --image-scanning-configuration scanOnPush=false \
+  --image-tag-mutability MUTABLE \
+  --region ${AWS_REGION}
+```
+
+- Prepare a script to create ECR tags for the docker images and save it as `prepare-tags-ecr-for-qa-docker-images.sh` and save it under `jenkins` folder.
+
+```bash
+MVN_VERSION=$(. ${WORKSPACE}/spring-petclinic-admin-server/target/maven-archiver/pom.properties && echo $version)
+export IMAGE_TAG_ADMIN_SERVER="${ECR_REGISTRY}/${APP_REPO_NAME}:admin-server-qa-v${MVN_VERSION}-b${BUILD_NUMBER}"
+MVN_VERSION=$(. ${WORKSPACE}/spring-petclinic-api-gateway/target/maven-archiver/pom.properties && echo $version)
+export IMAGE_TAG_API_GATEWAY="${ECR_REGISTRY}/${APP_REPO_NAME}:api-gateway-qa-v${MVN_VERSION}-b${BUILD_NUMBER}"
+MVN_VERSION=$(. ${WORKSPACE}/spring-petclinic-config-server/target/maven-archiver/pom.properties && echo $version)
+export IMAGE_TAG_CONFIG_SERVER="${ECR_REGISTRY}/${APP_REPO_NAME}:config-server-qa-v${MVN_VERSION}-b${BUILD_NUMBER}"
+MVN_VERSION=$(. ${WORKSPACE}/spring-petclinic-customers-service/target/maven-archiver/pom.properties && echo $version)
+export IMAGE_TAG_CUSTOMERS_SERVICE="${ECR_REGISTRY}/${APP_REPO_NAME}:customers-service-qa-v${MVN_VERSION}-b${BUILD_NUMBER}"
+MVN_VERSION=$(. ${WORKSPACE}/spring-petclinic-discovery-server/target/maven-archiver/pom.properties && echo $version)
+export IMAGE_TAG_DISCOVERY_SERVER="${ECR_REGISTRY}/${APP_REPO_NAME}:discovery-server-qa-v${MVN_VERSION}-b${BUILD_NUMBER}"
+MVN_VERSION=$(. ${WORKSPACE}/spring-petclinic-hystrix-dashboard/target/maven-archiver/pom.properties && echo $version)
+export IMAGE_TAG_HYSTRIX_DASHBOARD="${ECR_REGISTRY}/${APP_REPO_NAME}:hystrix-dashboard-qa-v${MVN_VERSION}-b${BUILD_NUMBER}"
+MVN_VERSION=$(. ${WORKSPACE}/spring-petclinic-vets-service/target/maven-archiver/pom.properties && echo $version)
+export IMAGE_TAG_VETS_SERVICE="${ECR_REGISTRY}/${APP_REPO_NAME}:vets-service-qa-v${MVN_VERSION}-b${BUILD_NUMBER}"
+MVN_VERSION=$(. ${WORKSPACE}/spring-petclinic-visits-service/target/maven-archiver/pom.properties && echo $version)
+export IMAGE_TAG_VISITS_SERVICE="${ECR_REGISTRY}/${APP_REPO_NAME}:visits-service-qa-v${MVN_VERSION}-b${BUILD_NUMBER}"
+export IMAGE_TAG_GRAFANA_SERVICE="${ECR_REGISTRY}/${APP_REPO_NAME}:grafana-service"
+export IMAGE_TAG_PROMETHEUS_SERVICE="${ECR_REGISTRY}/${APP_REPO_NAME}:prometheus-service"
+```
+
+- Prepare a script to build the dev docker images tagged for ECR registry and save it as `build-qa-docker-images-for-ecr.sh` and save it under `jenkins` folder.
+
+```bash
+docker build --force-rm -t "${IMAGE_TAG_ADMIN_SERVER}" "${WORKSPACE}/spring-petclinic-admin-server"
+docker build --force-rm -t "${IMAGE_TAG_API_GATEWAY}" "${WORKSPACE}/spring-petclinic-api-gateway"
+docker build --force-rm -t "${IMAGE_TAG_CONFIG_SERVER}" "${WORKSPACE}/spring-petclinic-config-server"
+docker build --force-rm -t "${IMAGE_TAG_CUSTOMERS_SERVICE}" "${WORKSPACE}/spring-petclinic-customers-service"
+docker build --force-rm -t "${IMAGE_TAG_DISCOVERY_SERVER}" "${WORKSPACE}/spring-petclinic-discovery-server"
+docker build --force-rm -t "${IMAGE_TAG_HYSTRIX_DASHBOARD}" "${WORKSPACE}/spring-petclinic-hystrix-dashboard"
+docker build --force-rm -t "${IMAGE_TAG_VETS_SERVICE}" "${WORKSPACE}/spring-petclinic-vets-service"
+docker build --force-rm -t "${IMAGE_TAG_VISITS_SERVICE}" "${WORKSPACE}/spring-petclinic-visits-service"
+docker build --force-rm -t "${IMAGE_TAG_GRAFANA_SERVICE}" "${WORKSPACE}/docker/grafana"
+docker build --force-rm -t "${IMAGE_TAG_PROMETHEUS_SERVICE}" "${WORKSPACE}/docker/prometheus"
+```
+
+- Prepare a script to push the dev docker images to the ECR repo and save it as `push-qa-docker-images-to-ecr.sh` and save it under `jenkins` folder.
+
+```bash
+aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_REGISTRY}
+docker push "${IMAGE_TAG_ADMIN_SERVER}"
+docker push "${IMAGE_TAG_API_GATEWAY}"
+docker push "${IMAGE_TAG_CONFIG_SERVER}"
+docker push "${IMAGE_TAG_CUSTOMERS_SERVICE}"
+docker push "${IMAGE_TAG_DISCOVERY_SERVER}"
+docker push "${IMAGE_TAG_HYSTRIX_DASHBOARD}"
+docker push "${IMAGE_TAG_VETS_SERVICE}"
+docker push "${IMAGE_TAG_VISITS_SERVICE}"
+docker push "${IMAGE_TAG_GRAFANA_SERVICE}"
+docker push "${IMAGE_TAG_PROMETHEUS_SERVICE}"
+```
+
+- Prepare a docker compose file for swarm deployment on QA environment and save it as `docker-compose-swarm-qa.yml`.
+
+```yaml
+version: '3.8'
+
+services:
+  config-server:
+    image: "${IMAGE_TAG_CONFIG_SERVER}"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    networks:
+      - clarusnet
+    ports:
+     - 8888:8888
+
+  discovery-server:
+    image: "${IMAGE_TAG_DISCOVERY_SERVER}"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    depends_on:
+      - config-server
+    entrypoint: ["./dockerize","-wait=tcp://config-server:8888","-timeout=60s","--","java", "-Djava.security.egd=file:/dev/./urandom","-jar","/app.jar"]
+    networks:
+      - clarusnet
+    ports:
+     - 8761:8761
+
+  customers-service:
+    image: "${IMAGE_TAG_CUSTOMERS_SERVICE}"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+      replicas: 3
+      update_config:
+          parallelism: 2
+          delay: 5s
+          order: start-first
+    depends_on:
+     - config-server
+     - discovery-server
+    entrypoint: ["./dockerize","-wait=tcp://discovery-server:8761","-timeout=60s","--","java", "-Djava.security.egd=file:/dev/./urandom","-jar","/app.jar"]
+    networks:
+      - clarusnet
+    ports:
+    - 8081:8081
+
+  visits-service:
+    image: "${IMAGE_TAG_VISITS_SERVICE}"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+      replicas: 3
+      update_config:
+          parallelism: 2
+          delay: 5s
+          order: start-first
+    depends_on:
+     - config-server
+     - discovery-server
+    entrypoint: ["./dockerize","-wait=tcp://discovery-server:8761","-timeout=60s","--","java", "-Djava.security.egd=file:/dev/./urandom","-jar","/app.jar"]
+    networks:
+      - clarusnet
+    ports:
+     - 8082:8082
+
+  vets-service:
+    image: "${IMAGE_TAG_VETS_SERVICE}"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+      replicas: 3
+      update_config:
+          parallelism: 2
+          delay: 5s
+          order: start-first
+    depends_on:
+     - config-server
+     - discovery-server
+    entrypoint: ["./dockerize","-wait=tcp://discovery-server:8761","-timeout=60s","--","java", "-Djava.security.egd=file:/dev/./urandom","-jar","/app.jar"]
+    networks:
+      - clarusnet
+    ports:
+     - 8083:8083
+
+  api-gateway:
+    image: "${IMAGE_TAG_API_GATEWAY}"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+      replicas: 5
+      update_config:
+          parallelism: 2
+          delay: 5s
+          order: start-first
+    depends_on:
+     - config-server
+     - discovery-server
+    entrypoint: ["./dockerize","-wait=tcp://discovery-server:8761","-timeout=60s","--","java", "-Djava.security.egd=file:/dev/./urandom","-jar","/app.jar"]
+    networks:
+      - clarusnet
+    ports:
+     - 8080:8080
+
+  tracing-server:
+    image: openzipkin/zipkin
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    environment:
+    - JAVA_OPTS=-XX:+UnlockExperimentalVMOptions -Djava.security.egd=file:/dev/./urandom
+    networks:
+      - clarusnet
+    ports:
+     - 9411:9411
+
+  admin-server:
+    image: "${IMAGE_TAG_ADMIN_SERVER}"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    depends_on:
+     - config-server
+     - discovery-server
+    entrypoint: ["./dockerize","-wait=tcp://discovery-server:8761","-timeout=60s","--","java", "-Djava.security.egd=file:/dev/./urandom","-jar","/app.jar"]
+    networks:
+      - clarusnet
+    ports:
+     - 9090:9090
+
+  hystrix-dashboard:
+    image: "${IMAGE_TAG_HYSTRIX_DASHBOARD}"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    depends_on:
+     - config-server
+     - discovery-server
+    entrypoint: ["./dockerize","-wait=tcp://discovery-server:8761","-timeout=60s","--","java", "-Djava.security.egd=file:/dev/./urandom","-jar","/app.jar"]
+    networks:
+      - clarusnet
+    ports:
+     - 7979:7979
+
+  ## Grafana / Prometheus
+
+  grafana-server:
+    image: "${IMAGE_TAG_GRAFANA_SERVICE}"
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+    networks:
+      - clarusnet
+    ports:
+    - 3000:3000
+
+  prometheus-server:
+    image: "${IMAGE_TAG_PROMETHEUS_SERVICE}"
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+    networks:
+      - clarusnet
+    ports:
+    - 9091:9090
+
+networks:
+  clarusnet:
+    driver: overlay
+```
+
+- Create Ansible playbook for deploying app on QA environment using docker compose file and save it as `pb_deploy_app_on_qa_environment.yaml` under `ansible/playbooks` folder.
+
+```yaml
+---
+- hosts: role_grand_master
+  tasks:
+  - name: Copy docker compose file to grand master
+    copy:
+      src: "{{ workspace }}/docker-compose-swarm-qa-tagged.yml"
+      dest: /home/ec2-user/docker-compose-swarm-qa-tagged.yml
+
+  - name: get login credentials for ecr
+    shell: "export PATH=$PATH:/usr/local/bin/ && aws ecr get-login-password --region {{ aws_region }} | docker login --username AWS --password-stdin {{ ecr_registry }}"
+    register: output
+
+  - name: deploy the app stack on swarm
+    shell: "docker stack deploy --with-registry-auth -c /home/ec2-user/docker-compose-swarm-qa-tagged.yml {{ app_name }}"
+    register: output
+
+  - debug: msg="{{ output.stdout }}"
+```
+
+- Prepare a script to deploy the application on QA environment and save it as `deploy_app_on_qa_environment.sh` under `ansible/scripts` folder.
+
+```bash
+PATH="$PATH:/usr/local/bin"
+APP_NAME="petclinic"
+sed -i "s/APP_STACK_NAME/${APP_STACK_NAME}/" ./ansible/inventory/qa_stack_dynamic_inventory_aws_ec2.yaml
+envsubst < docker-compose-swarm-qa.yml > docker-compose-swarm-qa-tagged.yml
+ansible-playbook -i ./ansible/inventory/qa_stack_dynamic_inventory_aws_ec2.yaml -b --extra-vars "workspace=${WORKSPACE} app_name=${APP_NAME} aws_region=${AWS_REGION} ecr_registry=${ECR_REGISTRY}" ./ansible/playbooks/pb_deploy_app_on_qa_environment.yaml
+```
+
+- Commit the change, then push the script to the remote repo.
+
+```bash
+git add .
+git commit -m 'added build scripts for QA Environment'
+git push --set-upstream origin feature/msp-19
+git checkout dev
+git merge feature/msp-19
+git push origin dev
+```
+
+## MSP 20 - Build and Deploy App on QA Environment Manually
+
+- Create `feature/msp-20` branch from `dev`.
+
+```bash
+git checkout dev
+git branch feature/msp-20
+git checkout feature/msp-20
+```
+
+- Create a Jenkins Job with name of `build-and-deploy-petclinic-on-qa-env` to build and deploy the app on `QA environment` manually on `release` branch using following script, and save the script as `build-and-deploy-petclinic-on-qa-env-manually.sh` under `jenkins` folder.
+
+```bash
+PATH="$PATH:/usr/local/bin"
+APP_NAME="petclinic"
+APP_REPO_NAME="clarusway-repo/petclinic-app-qa"
+APP_STACK_NAME="Call-petclinic-App-QA-1"
+CFN_KEYPAIR="call-petclinic-qa.key"
+AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+AWS_REGION="us-east-1"
+ECR_REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+export ANSIBLE_PRIVATE_KEY_FILE="${JENKINS_HOME}/.ssh/${CFN_KEYPAIR}"
+export ANSIBLE_HOST_KEY_CHECKING="False"
+echo 'Packaging the App into Jars with Maven'
+. ./jenkins/package-with-maven-container.sh
+echo 'Preparing QA Tags for Docker Images'
+. ./jenkins/prepare-tags-ecr-for-qa-docker-images.sh
+echo 'Building App QA Images'
+. ./jenkins/build-qa-docker-images-for-ecr.sh
+echo "Pushing App QA Images to ECR Repo"
+. ./jenkins/push-qa-docker-images-to-ecr.sh
+echo 'Deploying App on Swarm'
+. ./ansible/scripts/deploy_app_on_qa_environment.sh
+echo 'Deleting all local images'
+docker image prune -af
+```
+
+- Commit the change, then push the script to the remote repo.
+
+```bash
+git add .
+git commit -m 'added script for jenkins job to build and deploy app on QA environment'
+git push --set-upstream origin feature/msp-20
+git checkout dev
+git merge feature/msp-20
+git push origin dev
+```
+
+- Merge `dev` into `release` branch, then run `build-and-deploy-petclinic-on-qa-env` job to build and deploy the app on `QA environment` manually.
+
+```bash
+git checkout release
+git merge dev
+git push origin release
+```
+
+## MSP 21 - Prepare a QA Pipeline
+
+- Create `feature/msp-21` branch from `dev`.
+
+```bash
+git checkout dev
+git branch feature/msp-21
+git checkout feature/msp-21
+```
+
+- Create a QA Pipeline on Jenkins with name of `petclinic-weekly-qa` with following script and configure a `cron job` to trigger the pipeline every Sundays at midnight (`59 23 * * 0`) on `release` branch. Petclinic weekly build pipeline should be built on permanent QA environment.
+
+- Prepare a Jenkinsfile for `petclinic-weekly-qa` builds and save it as `jenkinsfile-petclinic-weekly-qa` under `jenkins` folder.
+
+```groovy
+pipeline {
+    agent { label "master" }
+    environment {
+        PATH=sh(script:"echo $PATH:/usr/local/bin", returnStdout:true).trim()
+        APP_NAME="petclinic"
+        APP_REPO_NAME="clarusway-repo/petclinic-app-qa"
+        APP_STACK_NAME="Matt-petclinic-App-QA-1"
+        CFN_KEYPAIR="matt-petclinic-qa.key"
+        AWS_ACCOUNT_ID=sh(script:'export PATH="$PATH:/usr/local/bin" && aws sts get-caller-identity --query Account --output text', returnStdout:true).trim()
+        AWS_REGION="us-east-1"
+        ECR_REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+        ANSIBLE_PRIVATE_KEY_FILE="${JENKINS_HOME}/.ssh/${CFN_KEYPAIR}"
+        ANSIBLE_HOST_KEY_CHECKING="False"
+    }
+    stages {
+        stage('Package Application') {
+            steps {
+                echo 'Packaging the app into jars with maven'
+                sh ". ./jenkins/package-with-maven-container.sh"
+            }
+        }
+        stage('Prepare Tags for Docker Images') {
+            steps {
+                echo 'Preparing Tags for Docker Images'
+                script {
+                    MVN_VERSION=sh(script:'. ${WORKSPACE}/spring-petclinic-admin-server/target/maven-archiver/pom.properties && echo $version', returnStdout:true).trim()
+                    env.IMAGE_TAG_ADMIN_SERVER="${ECR_REGISTRY}/${APP_REPO_NAME}:admin-server-qa-v${MVN_VERSION}-b${BUILD_NUMBER}"
+                    MVN_VERSION=sh(script:'. ${WORKSPACE}/spring-petclinic-api-gateway/target/maven-archiver/pom.properties && echo $version', returnStdout:true).trim()
+                    env.IMAGE_TAG_API_GATEWAY="${ECR_REGISTRY}/${APP_REPO_NAME}:api-gateway-qa-v${MVN_VERSION}-b${BUILD_NUMBER}"
+                    MVN_VERSION=sh(script:'. ${WORKSPACE}/spring-petclinic-config-server/target/maven-archiver/pom.properties && echo $version', returnStdout:true).trim()
+                    env.IMAGE_TAG_CONFIG_SERVER="${ECR_REGISTRY}/${APP_REPO_NAME}:config-server-qa-v${MVN_VERSION}-b${BUILD_NUMBER}"
+                    MVN_VERSION=sh(script:'. ${WORKSPACE}/spring-petclinic-customers-service/target/maven-archiver/pom.properties && echo $version', returnStdout:true).trim()
+                    env.IMAGE_TAG_CUSTOMERS_SERVICE="${ECR_REGISTRY}/${APP_REPO_NAME}:customers-service-qa-v${MVN_VERSION}-b${BUILD_NUMBER}"
+                    MVN_VERSION=sh(script:'. ${WORKSPACE}/spring-petclinic-discovery-server/target/maven-archiver/pom.properties && echo $version', returnStdout:true).trim()
+                    env.IMAGE_TAG_DISCOVERY_SERVER="${ECR_REGISTRY}/${APP_REPO_NAME}:discovery-server-qa-v${MVN_VERSION}-b${BUILD_NUMBER}"
+                    MVN_VERSION=sh(script:'. ${WORKSPACE}/spring-petclinic-hystrix-dashboard/target/maven-archiver/pom.properties && echo $version', returnStdout:true).trim()
+                    env.IMAGE_TAG_HYSTRIX_DASHBOARD="${ECR_REGISTRY}/${APP_REPO_NAME}:hystrix-dashboard-qa-v${MVN_VERSION}-b${BUILD_NUMBER}"
+                    MVN_VERSION=sh(script:'. ${WORKSPACE}/spring-petclinic-vets-service/target/maven-archiver/pom.properties && echo $version', returnStdout:true).trim()
+                    env.IMAGE_TAG_VETS_SERVICE="${ECR_REGISTRY}/${APP_REPO_NAME}:vets-service-qa-v${MVN_VERSION}-b${BUILD_NUMBER}"
+                    MVN_VERSION=sh(script:'. ${WORKSPACE}/spring-petclinic-visits-service/target/maven-archiver/pom.properties && echo $version', returnStdout:true).trim()
+                    env.IMAGE_TAG_VISITS_SERVICE="${ECR_REGISTRY}/${APP_REPO_NAME}:visits-service-qa-v${MVN_VERSION}-b${BUILD_NUMBER}"
+                    env.IMAGE_TAG_GRAFANA_SERVICE="${ECR_REGISTRY}/${APP_REPO_NAME}:grafana-service"
+                    env.IMAGE_TAG_PROMETHEUS_SERVICE="${ECR_REGISTRY}/${APP_REPO_NAME}:prometheus-service"
+                }
+            }
+        }
+        stage('Build App Docker Images') {
+            steps {
+                echo 'Building App Dev Images'
+                sh ". ./jenkins/build-qa-docker-images-for-ecr.sh"
+                sh 'docker image ls'
+            }
+        }
+        stage('Push Images to ECR Repo') {
+            steps {
+                echo "Pushing ${APP_NAME} App Images to ECR Repo"
+                sh ". ./jenkins/push-qa-docker-images-to-ecr.sh"
+            }
+        }
+        stage('Deploy App on Docker Swarm'){
+            steps {
+                echo 'Deploying App on Swarm'
+                sh '. ./ansible/scripts/deploy_app_on_qa_environment.sh'
+            }
+        }
+    }
+    post {
+        always {
+            echo 'Deleting all local images'
+            sh 'docker image prune -af'
+        }
+    }
+}
+```
+
+- Commit the change, then push the script to the remote repo.
+
+```bash
+git add .
+git commit -m 'added jenkinsfile petclinic-weekly-qa for release branch'
+git push --set-upstream origin feature/msp-21
+git checkout dev
+git merge feature/msp-21
+git push origin dev
+```
+
+- Merge `dev` into `release` branch to build and deploy the app on `QA environment` with pipeline.
+
+```bash
+git checkout release
+git merge dev
+git push origin release
+```
+
+## MSP 22 - Prepare Petlinic Kubernetes YAML Files
+
+* Create `feature/msp-22` branch from `release`.
+
+``` bash
+git checkout release
+git branch feature/msp-22
+git checkout feature/msp-22
+```
+
+* Create a folder with name of `k8s` for keeping the deployment files of Petclinic App on Kubernetes cluster.
+
+* Create a `docker-compose.yml` under `k8s` folder with the following content as to be used in conversion the k8s files.
+
+```yaml
+version: '3'
+services:
+  config-server:
+    image: IMAGE_TAG_CONFIG_SERVER
+    ports:
+     - 8888:8888
+    labels:
+      kompose.image-pull-secret: "regcred"
+  discovery-server:
+    image: IMAGE_TAG_DISCOVERY_SERVER
+    ports:
+     - 8761:8761
+    labels:
+      kompose.image-pull-secret: "regcred"
+  customers-service:
+    image: IMAGE_TAG_CUSTOMERS_SERVICE
+    deploy:
+      replicas: 2
+    ports:
+    - 8081:8081
+    labels:
+      kompose.image-pull-secret: "regcred"
+      kompose.service.expose: "petclinic04.clarusway.us"
+  visits-service:
+    image: IMAGE_TAG_VISITS_SERVICE
+    deploy:
+      replicas: 2
+    ports:
+     - 8082:8082
+    labels:
+      kompose.image-pull-secret: "regcred"
+      kompose.service.expose: "petclinic04.clarusway.us"
+  vets-service:
+    image: IMAGE_TAG_VETS_SERVICE
+    deploy:
+      replicas: 2
+    ports:
+     - 8083:8083
+    labels:
+      kompose.image-pull-secret: "regcred"
+      kompose.service.expose: "petclinic04.clarusway.us"
+  api-gateway:
+    image: IMAGE_TAG_API_GATEWAY
+    deploy:
+      replicas: 2
+    ports:
+     - 8080:8080
+    labels:
+      kompose.image-pull-secret: "regcred"
+      kompose.service.expose: "petclinic04.clarusway.us"
+  tracing-server:
+    image: openzipkin/zipkin
+    environment:
+    - JAVA_OPTS=-XX:+UnlockExperimentalVMOptions -Djava.security.egd=file:/dev/./urandom
+    ports:
+     - 9411:9411
+  admin-server:
+    image: IMAGE_TAG_ADMIN_SERVER
+    ports:
+     - 9090:9090
+    labels:
+      kompose.image-pull-secret: "regcred"
+  hystrix-dashboard:
+    image: IMAGE_TAG_HYSTRIX_DASHBOARD
+    ports:
+     - 7979:7979
+    labels:
+      kompose.image-pull-secret: "regcred"
+  grafana-server:
+    image: IMAGE_TAG_GRAFANA_SERVICE
+    ports:
+    - 3000:3000
+    labels:
+      kompose.image-pull-secret: "regcred"
+  prometheus-server:
+    image: IMAGE_TAG_PROMETHEUS_SERVICE
+    ports:
+    - 9091:9090
+    labels:
+      kompose.image-pull-secret: "regcred"
+```
+
+* Install [conversion tool](https://kompose.io/installation/) named `Kompose` on your Jenkins Server. [User Guide](https://kompose.io/user-guide/#user-guide)
+
+```bash
+curl -L https://github.com/kubernetes/kompose/releases/download/v1.22.0/kompose-linux-amd64 -o kompose
+chmod +x kompose
+sudo mv ./kompose /usr/local/bin/kompose
+kompose version
+```
+
+* Create folders named `base`, `staging`, `prod` under `k8s` folder. 
+  
+* Convert the `docker-compose.yml` into K8s objects and save under `k8s/base` folder.
+
+```bash
+kompose convert -f k8s/docker-compose.yml -o k8s/base
+```
+
+* Update deployment files with `init-containers` to launch microservices in sequence. See [Init Containers](https://kubernetes.io/docs/concepts/workloads/pods/init-containers/).
+
+```yaml
+# for discovery server
+      initContainers:
+      - name: init-config-server
+        image: busybox
+        command: ['sh', '-c', 'until nc -z config-server:8888; do echo waiting for config-server; sleep 2; done;']
+# for all other microservices except config-server and discovery-server
+      initContainers:
+      - name: init-discovery-server
+        image: busybox
+        command: ['sh', '-c', 'until nc -z discovery-server:8761; do echo waiting for discovery-server; sleep 2; done;']
+``` 
+
+* Update `customers-service-ingress.yaml` file with following setup to pass the api requests to `customers service` microservice.
+
+```yaml
+metadata:
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+spec:
+  rules:
+  - host: petclinic.clarusway.us
+    http:
+      paths:
+      - backend:
+          serviceName: customers-service
+          servicePort: 8081
+        path: /api/gateway(/|$)(.*)
+        pathType: ImplementationSpecific
+      - backend:
+          serviceName: customers-service
+          servicePort: 8081
+        path: /api/customer(/|$)(.*)
+        pathType: ImplementationSpecific
+```
+
+* Update `visits-service-ingress.yaml` file with following setup to pass the api requests to `visits service` microservice.
+
+```yaml
+metadata:
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+spec:
+  rules:
+  - host: petclinic.clarusway.us
+    http:
+      paths:
+      - backend:
+          serviceName: visits-service
+          servicePort: 8082
+        path: /api/visit(/|$)(.*)
+        pathType: ImplementationSpecific
+```
+
+* Update `vets-service-ingress.yaml` file with following setup to pass the api requests to `vets service` microservice.
+
+```yaml
+metadata:
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+spec:
+  rules:
+  - host: petclinic.clarusway.us
+    http:
+      paths:
+      - backend:
+          serviceName: vets-service
+          servicePort: 8083
+        path: /api/vet(/|$)(.*)
+        pathType: ImplementationSpecific
+```
+
+* Create `kustomization-template.yml` file with following content and save under `k8s/base` folder.
+
+```yaml
+resources:
+- admin-server-deployment.yaml
+- api-gateway-deployment.yaml
+- config-server-deployment.yaml
+- customers-service-deployment.yaml
+- discovery-server-deployment.yaml
+- grafana-server-deployment.yaml
+- hystrix-dashboard-deployment.yaml
+- prometheus-server-deployment.yaml
+- tracing-server-deployment.yaml
+- vets-service-deployment.yaml
+- visits-service-deployment.yaml
+- admin-server-service.yaml
+- api-gateway-service.yaml
+- config-server-service.yaml
+- customers-service-service.yaml
+- discovery-server-service.yaml
+- grafana-server-service.yaml
+- hystrix-dashboard-service.yaml
+- prometheus-server-service.yaml
+- tracing-server-service.yaml
+- vets-service-service.yaml
+- visits-service-service.yaml
+- api-gateway-ingress.yaml
+- customers-service-ingress.yaml
+- vets-service-ingress.yaml
+- visits-service-ingress.yaml
+
+images:
+- name: IMAGE_TAG_CONFIG_SERVER
+  newName: "${IMAGE_TAG_CONFIG_SERVER}"
+- name: IMAGE_TAG_DISCOVERY_SERVER
+  newName: "${IMAGE_TAG_DISCOVERY_SERVER}"
+- name: IMAGE_TAG_CUSTOMERS_SERVICE
+  newName: "${IMAGE_TAG_CUSTOMERS_SERVICE}"
+- name: IMAGE_TAG_VISITS_SERVICE
+  newName: "${IMAGE_TAG_VISITS_SERVICE}"
+- name: IMAGE_TAG_VETS_SERVICE
+  newName: "${IMAGE_TAG_VETS_SERVICE}"
+- name: IMAGE_TAG_API_GATEWAY
+  newName: "${IMAGE_TAG_API_GATEWAY}"
+- name: IMAGE_TAG_ADMIN_SERVER
+  newName: "${IMAGE_TAG_ADMIN_SERVER}"
+- name: IMAGE_TAG_HYSTRIX_DASHBOARD
+  newName: "${IMAGE_TAG_HYSTRIX_DASHBOARD}"
+- name: IMAGE_TAG_GRAFANA_SERVICE
+  newName: "${IMAGE_TAG_GRAFANA_SERVICE}"
+- name: IMAGE_TAG_PROMETHEUS_SERVICE
+  newName: "${IMAGE_TAG_PROMETHEUS_SERVICE}"
+```
+
+* Create `kustomization.yml` and `replica-count.yml` files for staging envrionment and save them under `k8s/staging` folder. See [Kubernetes Customization tool](https://kubernetes.io/docs/tasks/manage-kubernetes-objects/kustomization/) to manage Kubernetes objects.
+
+```yaml
+# kustomization.yml
+namespace: "petclinic-staging-ns"
+bases:
+- ../base
+patches:
+- replica-count.yml
+```
+
+```yaml
+# replica-count.yml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-gateway
+spec:
+  replicas: 3
+
+---
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: api-gateway
+spec:
+  rules:
+    - host: petclinic.clarusway.us
+      http:
+        paths:
+          - backend:
+              serviceName: api-gateway
+              servicePort: 8080
+
+---
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: customers-service
+spec:
+  rules:
+  - host: petclinic.clarusway.us
+    http:
+      paths:
+      - backend:
+          serviceName: customers-service
+          servicePort: 8081
+        path: /api/gateway(/|$)(.*)
+        pathType: ImplementationSpecific
+      - backend:
+          serviceName: customers-service
+          servicePort: 8081
+        path: /api/customer(/|$)(.*)
+        pathType: ImplementationSpecific
+
+---
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: vets-service
+spec:
+  rules:
+  - host: petclinic.clarusway.us
+    http:
+      paths:
+      - backend:
+          serviceName: vets-service
+          servicePort: 8083
+        path: /api/vet(/|$)(.*)
+        pathType: ImplementationSpecific
+
+---
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: visits-service
+spec:
+  rules:
+  - host: petclinic.clarusway.us
+    http:
+      paths:
+      - backend:
+          serviceName: visits-service
+          servicePort: 8082
+        path: /api/visit(/|$)(.*)
+        pathType: ImplementationSpecific
+```
+
+* Create `kustomization.yml` and `replica-count.yml` files for production envrionment and save them under `k8s/prod` folder.
+  
+```yaml
+# kustomization.yml
+namespace: "petclinic-prod-ns"
+bases:
+- ../base
+patches:
+- replica-count.yml
+```
+
+```yaml
+# replica-count.yml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-gateway
+spec:
+  replicas: 5
+```
+
+* Install `kubectl` on Jenkins Server. [Install and Set up kubectl](https://kubernetes.io/docs/tasks/tools/install-kubectl/#install-kubectl)
+
+```bash
+curl -o kubectl https://amazon-eks.s3.us-west-2.amazonaws.com/1.18.9/2020-11-02/bin/linux/amd64/kubectl
+sudo mv kubectl /usr/local/bin/kubectl
+chmod +x /usr/local/bin/kubectl
+kubectl version --short --client
+```
+
+* Check if the customization tool working as expected.
+
+```bash
+export IMAGE_TAG_CONFIG_SERVER="testing-image-1"    
+export IMAGE_TAG_DISCOVERY_SERVER="testing-image-2" 
+export IMAGE_TAG_CUSTOMERS_SERVICE="testing-image-3"
+export IMAGE_TAG_VISITS_SERVICE="testing-image-4"   
+export IMAGE_TAG_VETS_SERVICE="testing-image-5"     
+export IMAGE_TAG_API_GATEWAY="testing-image-6"      
+export IMAGE_TAG_ADMIN_SERVER="testing-image-7"     
+export IMAGE_TAG_HYSTRIX_DASHBOARD="testing-image-8"
+export IMAGE_TAG_GRAFANA_SERVICE="testing-image-9"
+export IMAGE_TAG_PROMETHEUS_SERVICE="testing-image-10"
+# create base kustomization file from template by updating with environments variables
+envsubst < k8s/base/kustomization-template.yml > k8s/base/kustomization.yml
+# test customization for production
+kubectl kustomize k8s/prod/
+# test customization for staging
+kubectl kustomize k8s/staging/
+```
+
+* Commit the change, then push the script to the remote repo.
+
+``` bash
+git add .
+git commit -m 'added Configuration YAML Files for Kubernetes Deployment'
+git push --set-upstream origin feature/msp-22
+git checkout release
+git merge feature/msp-22
+git push origin release
+```
+
+## MSP 23 - Prepare High-availability RKE Kubernetes Cluster on AWS EC2
